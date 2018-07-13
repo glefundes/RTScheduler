@@ -84,6 +84,7 @@ class App(QWidget):
         self.layout.addWidget(self.canvas, 0, 1, 1, 6)
         self.setLayout(self.layout) 
         self.show()
+        self.run()
         
     def createTable(self):
         self.taskTable = QTableWidget()
@@ -111,19 +112,22 @@ class App(QWidget):
     @pyqtSlot()
     def run(self):
         
-#        t1 = S.Task(20,100)
-#        t1.pltColor = 'red'
-#        t2 = S.Task(40,150)
-#        t2.pltColor = 'green'
-#        t3 = S.Task(100,350)
-#        t3.pltColor = 'blue'
-#        tasks = [t1, t2, t3]
-#        RM = S.rateMonotonic(tasks)
-
-        if (self.algo == "RM"):
-            scheduler = S.Scheduler(S.rateMonotonic(self.tasks))
-
+        # testcase 5
+        
+        t1 = S.Task(1,8)
+        t1.pltColor = 'red'
+        t2 = S.Task(2,5)
+        t2.pltColor = 'green'
+        t3 = S.Task(4,10)
+        t3.pltColor = 'blue'
+        tasks = [t1, t2, t3]
+        EDF = S.EDF(tasks)
+        scheduler = S.Scheduler(EDF)
+#        if (self.algo == "RM"):
+#            scheduler = S.Scheduler(S.RateMonotonic(self.tasks))
+#
         scheduler.begin(0)
+#        print(scheduler.result)
         self.canvas.plot(scheduler.result)
         
     def add_task(self, color):
@@ -185,11 +189,12 @@ class PlotCanvas(FigureCanvas):
         ax = self.figure.add_subplot(111)
         time_ticks = [x[1] for x in scheduling]
         ax.set_xticks(time_ticks)
-        for event in scheduling:    
-            t = event[1]
-            task = event[0]
-            ax.add_patch(Rectangle((t,0),task.duration,10,color=task.pltColor))
-        
+        for entry in scheduling:    
+            t = entry[1]
+            event = entry[0]
+            print(t, t+event.duration, event.color)
+            ax.add_patch(Rectangle((t,0),event.duration,10,color=event.color))
+#            ax.annotate(event.color, xy=(event.deadline, 0), xytext=(event.deadline, 15),arrowprops=dict(arrowstyle="->"))
         self.draw()
     
 if __name__ == '__main__':
