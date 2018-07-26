@@ -12,20 +12,33 @@ rslt = []
 class Task:
     """ simple class to represent task with duration and period """
     def __init__(self, duration, period):
+#        self.name = name
         self.duration = duration
         self.period = period
         self.deadline = period
         self.returnsAt = 0
         self.remaining = duration
         self.use = self.duration/self.period
-        
+
+        self.available = True
         self.pltColor = 'blue'
+    
+    def lostDeadline(self, t):
+        """ True if deadline is lost, False if not"""
+        if self.remaining!=0:
+            lcmT = lcm(t, self.period)
+            tEarly= t>self.period and lcmT%t == 0
+            tLate = t%lcmT == 0 and t<= self.period
+            
+            if(tEarly or tLate) and self.available:
+                return True
+            else:
+                return False
+            
     
     def printTask(self):
         print("(C:"+str(self.duration)+" T:"+str(self.period)+")")
-
-#        self.taskTable.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
-#        self.taskTable.resizeColumnsToContents()
+        
 class TaskEvent:
     def __init__(self, duration, deadline, color):
         self.duration = duration
@@ -52,8 +65,7 @@ class RateMonotonic:
         self.tasks = tasks
         
 class EDF:
-    """ dynamic priority by smallest period
-        period == period """
+    """ dynamic priority by earliest deadline """
     def __init__(self, tasks):
         self.schedulable = isSchedulable(tasks, "EDF")
         # Sort tasks by smallest period(period)
@@ -66,7 +78,7 @@ class EDF:
         self.tasks = tasks
     def getTasks(self):
         self.tasks.sort(key=lambda t: t.deadline, reverse=False)
-        # assign priority based on previous sort
+
         offset = 0
         for task in self.tasks:    
             task.priority = 1+offset
@@ -84,31 +96,43 @@ class Scheduler:
         self.result = []
         self.done = []
         self.algo = algo
-        self.scaleLimit = 5*(max(self.algo.tasks, key=attrgetter('period'))).period
+        self.scaleLimit = 2*(max(self.algo.tasks, key=attrgetter('period'))).period
         
         if(algo == "RM"):
             self.algo = RateMonotonic(self.tasks)
         
     def next_returning_task(self, tasks, t):
+#        for task in tasks:
+#            print(t, task.returnsAt)
+        
+        tasks.sort(key=lambda t: t.deadline, reverse=False)
+#        
+#        if (tasks[0].returnsAt != t):
+#            nextReturning = tasks[0]
+#        else:
+#            nextReturning = tasks[1]
         nextReturning = (min(self.done, key=attrgetter('returnsAt')))
         return nextReturning
-    def begin(self, t):
+    
+    def run(self, t):
         if (t <= self.scaleLimit):
             tasks = self.algo.getTasks()
+            
             
             # idle time
             if (len(tasks) == 0):
                nextReturning = self.next_returning_task(self.done, t)
-#               print(t, nextReturning.priority, "will return at ", nextReturning.returnsAt)
                if(t > nextReturning.returnsAt): nextReturning.returnsAt = t
                self.done.remove(nextReturning)
                tasks.append(nextReturning)
                self.algo.setTasks(tasks)
-               self.begin(nextReturning.returnsAt)
+               self.run(nextReturning.returnsAt)
             else:
                 # task arrival
                 nextTask = (min(tasks, key=attrgetter('priority')))# Get highest priority task
+                
                 finishingTime = t + nextTask.remaining        
+#                print(t, nextTask.pltColor, nextTask.deadline)
                 
                 # No tasks completed yet, start
                 if(len(self.done) == 0):
@@ -117,39 +141,41 @@ class Scheduler:
                     self.done.append(nextTask)
                     tasks.remove(nextTask)
                     self.algo.setTasks(tasks)
-#                    print('a', t, nextTask.remaining, nextTask.pltColor)
                     self.result.append ((TaskEvent(nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
-                    self.begin(finishingTime)
+                    self.run(finishingTime)
                 
                 # check if next task can be completed without preemption
                 else:
                     # Check returning tasks for returning time, find the one that returns the earliest
                     nextReturning = self.next_returning_task(self.done, t)
+#                     if(t == 10):
+#                        print(t, nextReturning.pltColor, nextReturning.priority, "|", nextTask.pltColor, nextTask.priority)
+#                        for task in self.done:
+#                            print (task.pltColor, task.deadline)
                     # Preemption: some task returns before the end of current task, and it has priority
+                    
+                    #handle split priority bug
+                    if(nextReturning.priority == nextTask.priority):
+                        print(finishingTime, nextReturning.returnsAt)
                     if (finishingTime > nextReturning.returnsAt and nextReturning.priority < nextTask.priority):
-#                        print(nextReturning.returnsAt)
                         nextTask.remaining -=  (nextReturning.returnsAt - t) 
                         self.done.remove(nextReturning)
                         tasks.append(nextReturning)
                         self.algo.setTasks(tasks)
-#                        print('b', t, nextTask.remaining, nextTask.pltColor)
                         self.result.append ((TaskEvent(nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
-                        self.begin(nextReturning.returnsAt)
+                        self.run(nextReturning.returnsAt)
                     
                     # current task can finish before the next one returning
                     else:
-#                        print('c', t, nextTask.remaining, nextTask.pltColor)
-
                         self.result.append ((TaskEvent(nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
                         finishingTime = t + nextTask.remaining
                         nextTask.remaining = nextTask.duration
                         nextTask.returnsAt += nextTask.period
                         nextTask.deadline = (nextTask.period + t)
-                    
                         self.done.append(nextTask)
                         tasks.remove(nextTask)
                         self.algo.setTasks(tasks)
-                        self.begin(finishingTime)
+                        self.run(finishingTime)
                  
 
 
@@ -169,4 +195,9 @@ def isSchedulable(tasks, algo):
             return True
         else:
             return False
-    
+        
+# From https://gist.github.com/endolith/114336/eff2dc13535f139d0d6a2db68597fad2826b53c3
+
+def lcm(a, b):
+    """Compute the lowest common multiple of a and b"""
+    return a * b / gcd(a, b)    

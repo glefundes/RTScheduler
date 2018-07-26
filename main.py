@@ -123,10 +123,11 @@ class App(QWidget):
         tasks = [t1, t2, t3]
         EDF = S.EDF(tasks)
         scheduler = S.Scheduler(EDF)
+
 #        if (self.algo == "RM"):
 #            scheduler = S.Scheduler(S.RateMonotonic(self.tasks))
 #
-        scheduler.begin(0)
+        scheduler.run(0)
 #        print(scheduler.result)
         self.canvas.plot(scheduler.result)
         
