@@ -11,8 +11,8 @@ rslt = []
 
 class Task:
     """ simple class to represent task with duration and period """
-    def __init__(self, duration, period):
-#        self.name = name
+    def __init__(self, name, duration, period):
+        self.name = name
         self.duration = duration
         self.period = period
         self.deadline = period
@@ -27,11 +27,13 @@ class Task:
         print("(C:"+str(self.duration)+" T:"+str(self.period)+")", self.pltColor, "deadline:", self.deadline, "priority", self.priority)
         
 class TaskEvent:
-    def __init__(self, duration, deadline, color):
+    def __init__(self, name, duration, deadline, color):
+        self.name = name
         self.duration = duration
         self.color = color
         self.deadline = deadline
-        
+
+
 class RateMonotonic:
     """ fixed priority by smallest period
         period == period """
@@ -82,11 +84,9 @@ class Scheduler:
     def __init__(self, algo):
         self.result = []
         self.algo = algo
-        self.scaleLimit = 2*(max(self.algo.tasks, key=attrgetter('period'))).period
-        
-        if(algo == "RM"):
-            self.algo = RateMonotonic(self.tasks)
-        
+        self.scaleLimit = 1.2*(max(self.algo.tasks, key=attrgetter('period'))).period
+
+            
     def next_returning_task(self, tasks, t):        
         tasks.sort(key=lambda t: t.deadline, reverse=False)
         tasksDone = [task for task in tasks if not task.available]
@@ -97,9 +97,6 @@ class Scheduler:
     def run(self, t):
         if (t <= self.scaleLimit):
             tasks = self.algo.getTasks()
-            if(t == 12):
-                for task in tasks:
-                    task.printTask()
             ##
             tasksDone = [task for task in tasks if not task.available]
             tasksAvailable = [task for task in tasks if  task.available]
@@ -130,18 +127,20 @@ class Scheduler:
                     tasks.append(nextTask)
                     self.algo.setTasks(tasks)
                     
-                    self.result.append ((TaskEvent(nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
+                    self.result.append ((TaskEvent(nextTask.name, nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
                     self.run(finishingTime)
                 
                 # check if next task can be completed without preemption
                 else:
                     # Check returning tasks for returning time, find the one that returns the earliest
                     nextReturning = self.next_returning_task(tasksDone, t)
+                    if(t > nextReturning.returnsAt): nextReturning.returnsAt = t
 
-                    # Preemption: some task returns before the end of current task, and it has priority
+#                     Preemption: some task returns before the end of current task, and it has priority
                     if (finishingTime > nextReturning.returnsAt and nextReturning.priority < nextTask.priority):
                         
                         print(t, "Preempt: ", nextReturning.pltColor+"(",nextReturning.priority,")", "takes over for ", nextTask.pltColor+"(",nextTask.priority,")" )
+                        
                         tasks.remove(nextReturning)
                         
                         nextTask.remaining -=  (nextReturning.returnsAt - t) 
@@ -150,13 +149,13 @@ class Scheduler:
                         tasks.append(nextReturning)
                         self.algo.setTasks(tasks)
                         
-                        self.result.append ((TaskEvent(nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
+                        self.result.append ((TaskEvent(nextTask.name, nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
                         self.run(nextReturning.returnsAt)
                     
                     # current task can finish before the next one returning
                     else:
                         print(t, "current task can finish before the next one returning", nextTask.pltColor)
-                        self.result.append ((TaskEvent(nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
+                        self.result.append ((TaskEvent(nextTask.name, nextTask.remaining, nextTask.deadline, nextTask.pltColor), t))
                         finishingTime = t + nextTask.remaining
                         tasks.remove(nextTask)
                         nextTask.remaining = nextTask.duration
